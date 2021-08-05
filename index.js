@@ -1,153 +1,216 @@
 const express = require('express');
-const fs = require('fs');
+const mongoose = require('mongoose');
+
+const session = require('express-session');
+const MongoDBStore = require('connect-mongodb-session')(session);
+const bcrypt = require('bcryptjs');
+const UserModel = require('./models/User');
 const jsonParser = express.json();
 const app = express();
 const PORT = process.env.PORT ?? 4000;
+const mongoURI = 'mongodb+srv://Herman:lera09072013@cluster0.ibwb5.mongodb.net/usersdb';
 
-const filePath = "users.json";
+const store = new MongoDBStore({
+	uri: mongoURI,
+	collection: 'sessions'
+})
 
-const url = 'mongodb+srv://Herman:lera09072013@cluster0.ibwb5.mongodb.net/usersdb';
+function validateCookie(req, res, next) {
+	const { cookies } = req;
+	console.log(cookies);
+	next(); 
+}
+
 
 const MongoClient = require('mongodb').MongoClient;
-const mongoClient = new MongoClient(url, { useUnifiedTopology: true });
+const mongoClient = new MongoClient(mongoURI, { useUnifiedTopology: true });
 
 
 const cors = require('cors');
-app.use(cors()) // Use this after the variable declaration
 
-let dbClient;
+app.use(express.urlencoded({ extended: true }));
 
+app.use(session({
+	secret: "key that will sing cookie",
+	resave: false,
+	saveUninitialized: false,
+	store: store,
+	cookie: {maxAge: 24 * 60 * 60 * 1000}
+}))
 
-mongoClient.connect((err, client) => {
-	if (err) return console.log(err);
+app.use(cors({
+    origin: 'http://localhost:3000',
+    preflightContinue: false,
+    credentials: true 
+}));
 
-	dbClient = client;
-	app.locals.collection = client.db('usersdb').collection('users');
+mongoose.connect(mongoURI, {
+	useCreateIndex: true,
+	useUnifiedTopology: true,
+	useNewUrlParser: true
+}).then(res => console.log('MongoDB Connected'))
 
-	app.listen(PORT, () => {
-		console.log(`Server has been started on port ${PORT}`);
-	});
+app.get('/api/users', async (req, res) => {
+	const users = await UserModel.find({});
+	const data = {
+		items: users,
+		resultCode: 0
+	};
+	console.log(req.session);
+	res.send(data);
 });
 
-
-app.get('/api/users', (req, res) => {
-	const collection = req.app.locals.collection;
-	collection.find({}).toArray((err, users) => {
-
-			if (err) return console.log(err);
-			const data = {
-				items: users,
-				resultCode: 0
-			}
-			res.send(data);
-	});
-});
-
-app.put('/api/follow/:id', jsonParser, (req, res) => {
+app.get('/api/follow/:id', async (req, res) => {
+	// const { followed } = req.body;
 	const id = +req.params.id;
-	const followed = req.body.followed;
-	const collection = req.app.locals.collection;
-
-	collection.findOneAndUpdate({ _id: id }, { $set: { followed } }, 
-	{ returnOriginal: false }, (err, result) => {
-		if (err) console.log(err);
-
-		const user = result.value;
-		const data = {
-			user,
-			resultCode: 0
-		}
-
-		res.send(data);
-	});
+	
+	const user = await UserModel.findById(id)
+    user.followers._id = id;
+    await user.save();
+  		// .then((user) => {
+   	// 		res.send({ user });
+  		// })
+  		// .catch(e => res.status(400).send(e));
+	
+	// await UserModel.findOneAndUpdate({ _id: id }, { $set: { followed } }, 
+	// 	{ returnOriginal: false }, (err, result) => {
+	// 		if (err) console.log(err);
+	// 		user = result.value;
+	// 		res.send(data);
+	// 	});
+	// const data = {
+	// 	user,
+	// 	resultCode: 0
+	// }
 });
 
-app.get('/api/auth/me', (req, res) => {
-	const collection = req.app.locals.collection;
+// app.put('/api/profile/status/:id', (req, res) => {
+	
+// 	const id = +req.params.id;
+// 	const newStatus = req.body.status;
 
-	collection.findOne({ name: "Герман" }, (err, user) => {
-		if (err) console.log(err);
-
-		const data = {
-			user,
-			resultCode: 0
-		}
-		res.send(data);
-	});
-});
-
-app.get('/api/profile/:id', (req, res) => {
-	const id = +req.params.id;
-	const collection = req.app.locals.collection;
-
-	collection.findOne({ _id: id }, (err, profile) => {
-		if (err) return console.log(err);
-		const data = {
-			profile,
-			resultCode: 0
-		}
-		res.send(data);
-	});
-});
-
-process.on('SIGINT', () => {
-	dbClient.close();
-	process.exit();
-});
-
-
-
-
-// app.get('/api/users', (req, res) => {
-// 	let data = fs.readFileSync(filePath, 'utf8');
-// 	let users = JSON.parse(data);
-// 	res.header("Access-Control-Allow-Origin", "*");
-// 	res.send(users); 
-// });
-// app.use(function(req, res, next){
-//   req.setTimeout(0) // no timeout for all requests, your server will be DoS'd
-//   next()
-// })
-// app.put('/api/users', jsonParser, (req, res) => {
-// 	if (!req.body) return res.sendStatus(400);
-// 	const id = req.body.id;
-// 	const followed = req.body.followed;
-
-// 	let data = fs.readFileSync(filePath, 'utf8');
-// 	let users = JSON.parse(data);
-// 	let user;
-
-// 	for (let i = 0; i < users.items.length; i++) {
-// 		if (users.items[i].id == id) {
-// 			user = users.items[i];
-// 			break;
-// 		}
-// 	}
-// 	if (user) {
-// 		user.followed = followed;
-
-// 		users.resultCode = 0;
-// 		data = JSON.stringify(users);
-// 		fs.writeFileSync(filePath, data);
-
-// 		res.send({
-// 			user,
+// 	UserModel.findOneAndUpdate({ _id: id }, { $set: { status: newStatus }}, { returnOriginal: false }, (err, result) => {
+// 		if (err) console.log(err);
+// 		const data = {
+// 			status: newStatus,
 // 			resultCode: 0
-// 		});
-// 	} else {
-// 		users.resultCode = 1;
+// 		}
 
-
-// 		res.status(404).send({
-// 			user,
-// 			resultCode: 1
-// 		});
-// 	}
-
+// 		res.send(data);
+// 	})
 // })
-// app.listen(PORT, () => {
-// 	console.log(`Server has been started on port ${PORT}`);
+
+app.get('/api/auth/me', async (req, res) => {
+
+	const user = await UserModel.findOne({ id: req.session.userId });
+
+	if (!user) {
+		return res.send({ resultCode: 1, message: "You are not authorized" });
+	}
+	return res.send({ user, resultCode: 0});
+});
+
+
+app.post('/api/auth/login', jsonParser, async (req, res) => {
+	const { username, password } = req.body;
+
+	const user = await UserModel.findOne({ username });
+	const message = 'The username or password is incorrect. Please try again';
+
+	if (!user) {
+		return res.send({ resultCode: 1, message });
+	}
+
+	const isMatch = await bcrypt.compare(password, user.password);
+	
+	if (!isMatch) {
+		return res.send({ resultCode: 1, message });
+	}
+
+	req.session.userId = user.id;
+
+	res.send({
+		resultCode: 0,
+		user
+	});
+});
+
+app.post('/api/auth/login/validUsername', jsonParser, async (req, res) => {
+	const { username } = req.body;
+
+	const user = await UserModel.findOne({ username });
+	if (user) {
+		return res.send({ message: 'Username already in use. Please choose another.' });
+	}
+
+	res.send({ message: "" });
+});
+
+app.post('/api/auth/login/validPassword', jsonParser, async (req, res) => {
+	const { password } = req.body;
+
+	const user = await UserModel.findOne({ password });
+	if (user) {
+		return res.send({ message: 'Username already in use. Please choose another.' });
+	}
+
+	res.send({ message: "" });
+});
+
+
+app.delete('/api/auth/login', async (req, res) => {
+	req.session.destroy();
+	res.send({
+		resultCode: 0
+	})
+});
+
+
+
+app.post('/api/register', jsonParser, async (req, res) => {
+	const { username, password } = req.body;
+
+	let user = await UserModel.findOne({ username });
+
+	if (user) {
+		return res.send({ resultCode: 1, message: "User with this username already exists", data: {} });
+	}
+	
+
+	const hashedPsw = await bcrypt.hash(password, 12);
+
+	user = new UserModel({
+		username,
+		password: hashedPsw
+	});
+	await user.save();
+
+	req.session.userId = user.id;
+
+	res.send({
+		resultCode: 0,
+		user
+	})
+});
+
+
+
+// app.get('/api/profile/:id', (req, res) => {
+// 	const id = +req.params.id;
+	
+
+// 	const item = UserModel.find({}).sort( [['_id', -1]] ).limit(1);
+
+// 	UserModel.findOne({ _id: id }, (err, profile) => {
+// 		if (err) return console.log(err);
+// 		const data = {
+// 			profile,
+// 			resultCode: 0
+// 		}
+// 		res.send(data);
+// 	});
 // });
 
-
-
+app.listen(PORT, () => {
+	console.log(`Server has been started on port ${PORT}`);
+})
