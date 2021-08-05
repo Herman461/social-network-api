@@ -195,21 +195,26 @@ app.post('/api/register', jsonParser, async (req, res) => {
 
 
 
-// app.get('/api/profile/:id', (req, res) => {
-// 	const id = +req.params.id;
+app.get('/api/profile', async(req, res) => {
 	
 
-// 	const item = UserModel.find({}).sort( [['_id', -1]] ).limit(1);
+	const user = await UserModel.findOne({ id: req.session.userId });
 
-// 	UserModel.findOne({ _id: id }, (err, profile) => {
-// 		if (err) return console.log(err);
-// 		const data = {
-// 			profile,
-// 			resultCode: 0
-// 		}
-// 		res.send(data);
-// 	});
-// });
+	if (!user) {
+		return res.send({ resultCode: 1, message: "User is not authorized" })
+	}
+	const data = {
+		message: "",
+		resultCode: 0,
+		profile: {
+			id: user.id,
+			username: user.username,
+			ava: user.ava,
+			status: user.status
+		}
+	}
+	res.send(data)
+});
 
 app.listen(PORT, () => {
 	console.log(`Server has been started on port ${PORT}`);
