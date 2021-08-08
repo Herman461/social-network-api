@@ -15,12 +15,6 @@ const store = new MongoDBStore({
 	collection: 'sessions'
 })
 
-function validateCookie(req, res, next) {
-	const { cookies } = req;
-	console.log(cookies);
-	next(); 
-}
-
 
 const MongoClient = require('mongodb').MongoClient;
 const mongoClient = new MongoClient(mongoURI, { useUnifiedTopology: true });
@@ -56,7 +50,6 @@ app.get('/api/users', async (req, res) => {
 		items: users,
 		resultCode: 0
 	};
-	console.log(req.session);
 	res.send(data);
 });
 
@@ -84,21 +77,23 @@ app.get('/api/follow/:id', async (req, res) => {
 	// }
 });
 
-// app.put('/api/profile/status/:id', (req, res) => {
+app.put('/api/profile/status', jsonParser, async (req, res) => {
 	
-// 	const id = +req.params.id;
-// 	const newStatus = req.body.status;
+	const { status } = req.body;
 
-// 	UserModel.findOneAndUpdate({ _id: id }, { $set: { status: newStatus }}, { returnOriginal: false }, (err, result) => {
-// 		if (err) console.log(err);
-// 		const data = {
-// 			status: newStatus,
-// 			resultCode: 0
-// 		}
+	await UserModel.findOneAndUpdate({ id: req.session.userId }, 
+		{ $set: { status }}, { returnOriginal: false, useFindAndModify: false })
+		
 
-// 		res.send(data);
-// 	})
-// })
+
+	const data = {
+		status,
+		resultCode: 0
+	}
+	res.send(data);
+})
+
+
 
 app.get('/api/auth/me', async (req, res) => {
 
